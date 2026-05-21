@@ -1,0 +1,13 @@
+torch
+torchvision
+lightning
+PyYAML
+opencv-python
+numpy
+Pillow
+tqdm
+matplotlib
+seaborn
+onnx
+thop
+mqbench

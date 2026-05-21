@@ -1,0 +1,10 @@
+.DS_Store
+.idea/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+build/
+cpp/build/
+cpp/artifacts/
+cpp/board.env
+python/runs/

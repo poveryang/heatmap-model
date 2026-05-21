@@ -1,0 +1,26 @@
+data:
+  root_dir: '/Users/yjunj/Downloads/test'
+  batch_size: 4
+  input_size: [ 400, 640 ]
+  num_workers: 0
+
+model:
+  in_channels: 1
+  n_classes: 3
+  inc_channels: 16
+  interpolation: 'nearest'
+  gamma: 2.0
+  alpha: 0.5
+  init_lr: 5e-4
+
+trainer:
+  accelerator: 'auto'
+  strategy: 'auto'
+  devices: 1
+  precision: '32-true'
+  max_epochs: 2
+  sync_batchnorm: False
+  check_val_every_n_epoch: 1
+  limit_train_batches: 20
+  limit_val_batches: 5
+  num_sanity_val_steps: 0

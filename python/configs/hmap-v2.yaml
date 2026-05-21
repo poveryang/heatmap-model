@@ -1,0 +1,22 @@
+data:
+  root_dir: '/newdata/junjieyang/Datasets/barcode'
+  batch_size: 16
+  input_size: [ 400, 640 ]
+
+model:
+  in_channels: 1
+  n_classes: 3
+  inc_channels: 16
+  interpolation: 'nearest'
+  gamma: 2.0
+  alpha: 0.5
+  init_lr: 5e-4
+
+trainer:
+  accelerator: 'auto'
+  strategy: 'auto'
+  devices: 'auto'
+  precision: '32-true'
+  max_epochs: 500
+  sync_batchnorm: True
+  check_val_every_n_epoch: 2
