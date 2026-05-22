@@ -8,6 +8,7 @@ if str(PYTHON_ROOT) not in sys.path:
 
 import cv2
 import torch
+from tqdm import tqdm
 
 from hmap import CONFIGS_DIR
 from hmap.dataset import HeatMapTransform
@@ -15,38 +16,84 @@ from hmap.model import HMapLitModel
 from hmap.utils import load_configs, load_pl_model, visualize_single_hmap
 
 
-def infer_single_image(image_path, hmap_model, visualize=True):
-    image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
-    hmap_transform = HeatMapTransform(
-        input_size=(400, 640), img_aug=False, geo_aug=False)
+def infer_single_image(image_path, hmap_model, hmap_transform, visualize=True, output_path=None):
+    image = cv2.imread(str(image_path), cv2.IMREAD_GRAYSCALE)
+    if image is None:
+        raise ValueError(f'Failed to read image: {image_path}')
+
     in_tensor, image_tensor = hmap_transform(image)
     in_tensor = in_tensor.unsqueeze(0)
     image_tensor = image_tensor.unsqueeze(0)
 
-    hmap_tensor = hmap_model(in_tensor)
-    hmap_tensor = torch.sigmoid(hmap_tensor)
+    with torch.no_grad():
+        hmap_tensor = hmap_model(in_tensor)
+        hmap_tensor = torch.sigmoid(hmap_tensor)
 
-    if visualize:
+    if visualize or output_path is not None:
         vis_fig = visualize_single_hmap(hmap_tensor, image_tensor)
         vis_fig = cv2.cvtColor(vis_fig, cv2.COLOR_RGB2BGR)
-        cv2.imshow('vis_fig', vis_fig)
-        cv2.waitKey(0)
+        if output_path is not None:
+            output_path = Path(output_path)
+            output_path.parent.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(output_path), vis_fig)
+        elif visualize:
+            cv2.imshow('vis_fig', vis_fig)
+            cv2.waitKey(0)
 
     return hmap_tensor
 
 
-def main(exp_name, ckpt_path, image_path, visualize=True):
+def infer_directory(input_dir, output_dir, hmap_model, input_size, visualize=False):
+    input_dir = Path(input_dir)
+    output_dir = Path(output_dir)
+    image_paths = sorted(input_dir.rglob('*.png'))
+    if not image_paths:
+        raise ValueError(f'No PNG images found under: {input_dir}')
+
+    hmap_transform = HeatMapTransform(input_size=input_size, img_aug=False, geo_aug=False)
+    for image_path in tqdm(image_paths, desc='Inferring'):
+        rel_path = image_path.relative_to(input_dir)
+        output_path = output_dir / rel_path.with_suffix('.png')
+        infer_single_image(
+            image_path, hmap_model, hmap_transform,
+            visualize=visualize, output_path=output_path)
+
+    return len(image_paths)
+
+
+def main(exp_name, ckpt_path, image_path=None, input_dir=None, output_dir=None, visualize=True):
     configs = load_configs(CONFIGS_DIR / f'{exp_name}.yaml')
     hmap_model = load_pl_model(HMapLitModel, ckpt_path, **configs['model'])
     hmap_model.eval()
-    infer_single_image(image_path, hmap_model, visualize=visualize)
+    input_size = tuple(configs['data']['input_size'])
+    hmap_transform = HeatMapTransform(input_size=input_size, img_aug=False, geo_aug=False)
+
+    if input_dir is not None:
+        if output_dir is None:
+            output_dir = Path(input_dir).parent / f'{Path(input_dir).name}-results'
+        count = infer_directory(input_dir, output_dir, hmap_model, input_size, visualize=visualize)
+        print(f'Finished inference on {count} images. Results saved to: {output_dir}')
+        return
+
+    if image_path is None:
+        raise ValueError('Provide either --image or --input-dir.')
+
+    infer_single_image(image_path, hmap_model, hmap_transform, visualize=visualize)
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Run Python heatmap inference on one image.')
+    parser = argparse.ArgumentParser(description='Run Python heatmap inference on one image or a directory.')
     parser.add_argument('--exp', default='hmap-v2', help='Experiment config name.')
     parser.add_argument('--ckpt', required=True, help='Path to Lightning checkpoint.')
-    parser.add_argument('--image', required=True, help='Path to input grayscale image.')
-    parser.add_argument('--no-vis', action='store_true', help='Skip OpenCV visualization.')
+    parser.add_argument('--image', help='Path to input grayscale image.')
+    parser.add_argument('--input-dir', help='Directory containing input PNG images.')
+    parser.add_argument('--output-dir', help='Directory to save visualization results for batch inference.')
+    parser.add_argument('--no-vis', action='store_true', help='Skip interactive OpenCV visualization.')
     args = parser.parse_args()
-    main(args.exp, args.ckpt, args.image, visualize=not args.no_vis)
+    main(
+        args.exp, args.ckpt,
+        image_path=args.image,
+        input_dir=args.input_dir,
+        output_dir=args.output_dir,
+        visualize=not args.no_vis and args.input_dir is None,
+    )

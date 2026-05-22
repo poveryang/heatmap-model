@@ -5,11 +5,11 @@ PROJECT(HMAP)
 SET(TENGINE_DIR ${PROJECT_SOURCE_DIR}/thirdparty/tengine)
 
 # Configure tengine library and opencv library
-IF (${TARGET_PLATFORM} MATCHES "imx8plus")
+IF (TARGET_PLATFORM MATCHES "imx8plus")
     MESSAGE(STATUS "Target architecture: imx8plus")
     SET(TENGINE_LIB_DIR ${TENGINE_DIR}/lib/aarch64)
     SET(OpenCV_DIR /opt/libs_aarch64/opencv_aarch64/lib/cmake/opencv4)
-ELSEIF (${TARGET_PLATFORM} STREQUAL "x86")
+ELSEIF (TARGET_PLATFORM STREQUAL "x86")
     MESSAGE(STATUS "Target architecture: x86")
     SET(TENGINE_LIB_DIR ${TENGINE_DIR}/lib/x86)
     SET(OpenCV_DIR /usr/lib/x86_64-linux-gnu/cmake/opencv4)

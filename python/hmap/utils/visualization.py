@@ -75,6 +75,7 @@ def visualize_single_hmap(hmap_tensor, img_tensor):
     fig.tight_layout()
     fig.canvas.draw()
     fig_img = np.array(fig.canvas.renderer.buffer_rgba())[:, :, :3]
+    plt.close(fig)
 
     return fig_img
 
