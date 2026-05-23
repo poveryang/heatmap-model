@@ -96,11 +96,91 @@ bash cpp/scripts/dev/validate_local.sh \
   --image /path/to/test.png
 ```
 
+## 量化参数与第三方量化表
+
+当前 C++ uint8 路径直接把 raw uint8 图像送入 Tengine，因此 Tengine
+输入量化参数必须等价于 FP32/PyTorch 预处理：
+`(x / 255 - 0.4329) / 0.2349`。对应参数为：
+
+```bash
+--mean 110.3895,110.3895,110.3895 \
+--scale 0.01669463,0.01669463,0.01669463
+```
+
+这组参数已经写入 `cpp/profiles/imx8plus.env` 和
+`cpp/scripts/convert/quantize_uint8.sh` 的默认值。不要再使用
+`--scale 0.2349,0.2349,0.2349`，那会让 uint8 输入反量化到错误范围。
+
+如果必须使用第三方导出的量化表，目前兼容性最明确的候选是
+**MQBench + Tengine 导入表**：
+
+1. MQBench 使用 `BackendType.Tengine_u8` 做 PTQ 校准并导出 `*_for_tengine.scale`。
+2. `convert_tool` 将 MQBench 导出的 `*_for_tengine.onnx` 转成 fp32 tmfile。
+3. `quant_tool_uint8 -f` 导入 MQBench scale 表并生成 uint8 tmfile。
+4. 每个方案用独立目录保存模型、scale、metadata 和板端推理结果。
+
+```bash
+# 1. 导出 MQBench Tengine scale 表
+conda run -n hmap python python/scripts/quant/mqbench_quant.py \
+  --ckpt cpp/artifacts/ckpt/hmap-v2-epoch=499-val_loss=3.828e-04.ckpt \
+  --exp hmap-v2 \
+  --calib cpp/artifacts/calib_from_test \
+  --out-dir cpp/artifacts/quant_eval/mqbench-symw-512 \
+  --model-name hmap_mqbench_symw_512 \
+  --observer default \
+  --weight-qscheme symmetric \
+  --calib-limit 512
+
+# 2. MQBench ONNX -> fp32 tmfile
+bash cpp/scripts/convert/onnx_to_tmfile.sh \
+  --onnx cpp/artifacts/quant_eval/mqbench-symw-512/hmap_mqbench_symw_512_for_tengine.onnx \
+  --out cpp/artifacts/quant_eval/mqbench-symw-512/model-fp32.tmfile
+
+# 3. 导入 MQBench scale 表生成 uint8 tmfile
+bash cpp/scripts/convert/quantize_uint8.sh \
+  --fp32 cpp/artifacts/quant_eval/mqbench-symw-512/model-fp32.tmfile \
+  --calib cpp/artifacts/quant_eval/calib-512-even \
+  --scale-file cpp/artifacts/quant_eval/mqbench-symw-512/hmap_mqbench_symw_512_for_tengine.scale \
+  --out cpp/artifacts/quant_eval/mqbench-symw-512/model-uint8.tmfile
+
+# 4. 板端批量推理，结果单独落盘
+HEATMAP_BOARD_CONFIG=cpp/board.env \
+  bash cpp/scripts/deploy/run_on_board.sh \
+  --context timvx \
+  --precision uint8 \
+  --tengine-runtime none \
+  --model cpp/artifacts/quant_eval/mqbench-symw-512/model-uint8.tmfile \
+  --input-dir python/infer-datasets/focus \
+  --out-dir cpp/artifacts/quant_eval/mqbench-symw-512/focus-results
+```
+
+`mqbench_quant.py` 默认会把输入量化参数强制改成部署预处理一致的形式：
+`scale = 1 / (std * 255)`，`zero_point = round(mean * 255)`。这与 C++ uint8
+路径直接传 raw uint8 图像匹配；如果保持 MQBench 观测到的输入分布，需显式传
+`--no-force-input-qparams`。
+
+`mqbench_quant.py` 还默认使用 `--weight-qscheme symmetric`。不要用 MQBench
+`Tengine_u8` 原始 asymmetric weight 默认值；本模型上会把负权重裁到正范围，
+导出的 ONNX 本身就会发散，表现为粗块状白/灰热图。
+
+本轮实测结果保存在 `cpp/artifacts/quant_eval/`：
+
+| 方案 | 结果目录 | 结论 |
+| --- | --- | --- |
+| FP32 基线 | `fp32-tengine-cpu/focus-results-clean` | Tengine CPU FP32 参考输出 |
+| 厂商 KL + 修正输入参数 | `vendor-kl-normalized/focus-results-clean` | 简单、稳定，接近 FP32 |
+| 厂商 KL 原参数 | `vendor-kl-current/focus-results-clean` | 与 FP32 差距明显，不推荐 |
+| MQBench Tengine 原始 weight 默认值 | `mqbench-ema-512/focus-results-clean` | 导出 ONNX 已发散，不推荐 |
+| MQBench symmetric weight scale 导入 | `mqbench-symw-512/focus-results-clean` | 本轮最接近 FP32 的第三方量化表方案 |
+
 ## 注意事项
 
 - `cpp/src/hmap_generator.cpp` 已兼容 Tengine 输出 NCHW/NHWC。
 - `--tengine-runtime minimal` 时 Vivante/OpenVX 走板端原生环境。
 - imx8plus 日志中可能出现 TIM-VX EVIS shader 编译告警，当前 uint8 + timvx 推理正常。
+- 如果要复查厂商直量化的输入归一化，当前 FP32/PyTorch 预处理为
+  `(x / 255 - 0.4329) / 0.2349`，对应 Tengine raw 输入参数约为
+  `--mean 110.3895,110.3895,110.3895 --scale 0.01669463,0.01669463,0.01669463`。
 
 ---
 

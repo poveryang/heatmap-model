@@ -9,5 +9,7 @@ tqdm
 matplotlib
 seaborn
 onnx
+onnxruntime
+onnxsim
 thop
 mqbench

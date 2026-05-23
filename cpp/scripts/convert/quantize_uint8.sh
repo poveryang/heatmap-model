@@ -21,6 +21,9 @@ Options:
   --shape VALUE    Input shape passed to -g. Default: profile TENGINE_INPUT_SHAPE
   --mean VALUE     Values passed to -w. Default: profile TENGINE_MEAN_VALUES
   --scale VALUE    Values passed to -s. Default: profile TENGINE_SCALE_VALUES
+  --scale-file PATH
+                  External calibration scale table passed to -f, for example
+                  MQBench *_for_tengine.scale.
   --threads VALUE  Thread count passed to -t. Default: profile TENGINE_QUANT_THREADS
   --algo VALUE     Algorithm id passed to -a. Default: profile TENGINE_QUANT_ALGORITHM
   -h, --help       Show this help.
@@ -132,10 +135,11 @@ FP32_TMFILE="$(resolve_repo_path "${DEFAULT_FP32_TMFILE:-cpp/artifacts/tmfile/mo
 OUT_TMFILE="$(resolve_repo_path "${DEFAULT_UINT8_TMFILE:-cpp/artifacts/tmfile/model-uint8.tmfile}")"
 CALIB_DATASET=""
 INPUT_SHAPE="${TENGINE_INPUT_SHAPE:-1,400,640}"
-MEAN_VALUES="${TENGINE_MEAN_VALUES:-110.4,110.4,110.4}"
-SCALE_VALUES="${TENGINE_SCALE_VALUES:-0.2349,0.2349,0.2349}"
+MEAN_VALUES="${TENGINE_MEAN_VALUES:-110.3895,110.3895,110.3895}"
+SCALE_VALUES="${TENGINE_SCALE_VALUES:-0.01669463,0.01669463,0.01669463}"
 THREADS="${TENGINE_QUANT_THREADS:-64}"
 ALGORITHM="${TENGINE_QUANT_ALGORITHM:-1}"
+SCALE_FILE=""
 
 set -- "${ARGS[@]}"
 
@@ -167,6 +171,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --scale)
       SCALE_VALUES="$2"
+      shift 2
+      ;;
+    --scale-file)
+      SCALE_FILE="$(resolve_path "$2")"
       shift 2
       ;;
     --threads)
@@ -208,6 +216,11 @@ if [[ ! -d "$CALIB_DATASET" ]]; then
   exit 1
 fi
 
+if [[ -n "$SCALE_FILE" && ! -f "$SCALE_FILE" ]]; then
+  echo "Scale file not found: $SCALE_FILE" >&2
+  exit 1
+fi
+
 mkdir -p "$(dirname "$OUT_TMFILE")"
 
 if [[ "$MODEL_CONVERT_RUNNER" == "host" ]]; then
@@ -216,15 +229,20 @@ if [[ "$MODEL_CONVERT_RUNNER" == "host" ]]; then
     echo "Set TENGINE_QUANT_TOOL, pass --tool, or use a Docker profile." >&2
     exit 1
   fi
-  "$QUANT_TOOL" \
-    -m "$FP32_TMFILE" \
-    -o "$OUT_TMFILE" \
-    -i "$CALIB_DATASET" \
-    -g "$INPUT_SHAPE" \
-    -w "$MEAN_VALUES" \
-    -s "$SCALE_VALUES" \
-    -t "$THREADS" \
+  QUANT_ARGS=(
+    -m "$FP32_TMFILE"
+    -o "$OUT_TMFILE"
+    -i "$CALIB_DATASET"
+    -g "$INPUT_SHAPE"
+    -w "$MEAN_VALUES"
+    -s "$SCALE_VALUES"
+    -t "$THREADS"
     -a "$ALGORITHM"
+  )
+  if [[ -n "$SCALE_FILE" ]]; then
+    QUANT_ARGS+=(-f "$SCALE_FILE")
+  fi
+  "$QUANT_TOOL" "${QUANT_ARGS[@]}"
 elif [[ "$MODEL_CONVERT_RUNNER" == "docker" ]]; then
   if ! command -v docker >/dev/null 2>&1; then
     echo "docker command not found; install Docker or use a host profile." >&2
@@ -271,6 +289,9 @@ elif [[ "$MODEL_CONVERT_RUNNER" == "docker" ]]; then
     -t "$THREADS" \
     -a "$ALGORITHM"
   )
+  if [[ -n "$SCALE_FILE" ]]; then
+    DOCKER_CMD+=(-f "$(to_docker_path "$SCALE_FILE")")
+  fi
   "${DOCKER_CMD[@]}"
 else
   echo "Unsupported MODEL_CONVERT_RUNNER: $MODEL_CONVERT_RUNNER" >&2
