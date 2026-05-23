@@ -12,7 +12,7 @@
 **训练**（见 [python/README.md](python/README.md)）：
 
 ```bash
-conda activate hmap   # 或 python -m venv .venv && pip install -r python/requirements.txt
+conda activate hmap   # pip install -r python/requirements.txt && bash python/scripts/install_mqbench.sh
 python python/train.py --exp hmap-smoke
 ```
 

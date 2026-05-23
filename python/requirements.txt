@@ -12,4 +12,5 @@ onnx
 onnxruntime
 onnxsim
 thop
-mqbench
+protobuf
+prettytable

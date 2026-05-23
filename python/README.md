@@ -11,8 +11,9 @@ python/
   hmap/                           核心包（dataset / model / utils）
   scripts/
     export_onnx.py                导出 ONNX
+    install_mqbench.sh            安装 MQBench（GitHub，非 PyPI）
     prepare_dataset.py            labelme → train/test 数据集
-    quant/mqbench_quant.py        MQBench 量化（可选，非 imx8plus 主链路）
+    quant/mqbench_quant.py        MQBench 量化导出
     dev/profile_model.py          模型 FLOPs 分析
     dev/data_misc.py              旧数据集辅助工具
   runs/                           训练输出（gitignore）
@@ -21,13 +22,27 @@ python/
 
 ## 环境
 
+推荐使用 Conda 环境 `hmap`（Python 3.10）：
+
+```bash
+conda create -n hmap python=3.10 -y
+conda activate hmap
+pip install -r python/requirements.txt
+bash python/scripts/install_mqbench.sh
+```
+
+或使用 venv：
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -r python/requirements.txt
+bash python/scripts/install_mqbench.sh
 ```
 
-或使用 Conda 环境 `hmap`（Python 3.10）。
+`mqbench` 不在 PyPI 上，需通过 `install_mqbench.sh` 从 GitHub 安装。脚本默认拉取
+[ModelTC/MQBench](https://github.com/ModelTC/MQBench) 的 `main` 分支，可用
+`--ref` 指定 tag 或 commit。
 
 ## 训练
 
@@ -87,6 +102,6 @@ python python/scripts/export_onnx.py \
 # 模型计算量分析（需 thop）
 python python/scripts/dev/profile_model.py
 
-# MQBench 量化导出（需 mqbench，用于其他后端）
+# MQBench 量化导出（需先运行 install_mqbench.sh）
 python python/scripts/quant/mqbench_quant.py
 ```
