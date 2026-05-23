@@ -1,0 +1,23 @@
+data:
+  root_dir: '/home/yjunj/data/barcode'
+  batch_size: 16
+  input_size: [ 400, 640 ]
+  num_workers: 4
+
+model:
+  in_channels: 1
+  n_classes: 3
+  inc_channels: 16
+  interpolation: 'nearest'
+  gamma: 2.0
+  alpha: 0.1
+  init_lr: 1e-4
+
+trainer:
+  accelerator: 'gpu'
+  strategy: 'ddp'
+  devices: 4
+  precision: '16-mixed'
+  max_epochs: 300
+  sync_batchnorm: True
+  check_val_every_n_epoch: 2
