@@ -56,6 +56,20 @@ if ! python -c "import torch" >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! python - <<'PY' >/dev/null 2>&1; then
+import torch
+from packaging.version import Version
+
+version = Version(torch.__version__.split("+")[0])
+if version >= Version("2.6"):
+    raise SystemExit(1)
+PY
+then
+  echo "MQBench requires torch<2.6 (recommended: torch==2.5.1+cu124)." >&2
+  echo "Reinstall with: pip install -r python/requirements.txt" >&2
+  exit 1
+fi
+
 echo "Installing MQBench from ${MQBENCH_REPO}@${MQBENCH_REF} ..."
 pip install --default-timeout="${PIP_TIMEOUT}" --no-deps \
   "git+${MQBENCH_REPO}@${MQBENCH_REF}"
