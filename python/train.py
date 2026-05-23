@@ -53,7 +53,8 @@ def main(exp_name, pretrained_path=None, resume_path=None):
 
     run_dir = make_run_dir(exp_name)
     callbacks = set_callbacks(exp_name, run_dir)
-    logger = CSVLogger(save_dir=str(run_dir))
+    # name/version empty: metrics and plots go directly under run_dir
+    logger = CSVLogger(save_dir=str(run_dir), name='', version='')
     trainer = Trainer(logger=logger, **configs['trainer'], callbacks=callbacks)
 
     print(f"Run directory: {run_dir}")
