@@ -1,5 +1,5 @@
 data:
-  root_dir: '/Users/yjunj/Downloads/test'
+  root_dir: '/home/yjunj/data/barcode'
   batch_size: 4
   input_size: [ 400, 640 ]
   num_workers: 0
