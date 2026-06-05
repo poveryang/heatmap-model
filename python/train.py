@@ -1,4 +1,5 @@
 import argparse
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -17,7 +18,10 @@ from hmap.utils import load_configs, load_pl_model, set_callbacks
 
 
 def make_run_dir(exp_name: str) -> Path:
-    run_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{exp_name}"
+    run_name = os.environ.get('HMAP_RUN_NAME')
+    if not run_name:
+        run_name = f"{datetime.now().strftime('%Y%m%d_%H%M%S')}_{exp_name}"
+        os.environ['HMAP_RUN_NAME'] = run_name
     run_dir = RUNS_DIR / run_name
     run_dir.mkdir(parents=True, exist_ok=True)
     return run_dir
