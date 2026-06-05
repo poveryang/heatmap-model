@@ -1,4 +1,6 @@
 import cv2
+import numpy as np
+import torch
 
 
 def hmap_to_bboxes(hmap_tensor, intensity_threshold=0.2):
@@ -81,3 +83,53 @@ def calculate_iou(bbox1, bbox2):
     intersection = (x2 - x1) * (y2 - y1)
     union = w1 * h1 + w2 * h2 - intersection
     return intersection / union
+
+
+def dense_output_to_rotated_rois(
+        dense_tensor,
+        object_classes=3,
+        geometry_channels=6,
+        intensity_threshold=0.2,
+        min_area=100):
+    """Decode a single image dense output into rotated ROI proposals."""
+    if dense_tensor.ndim != 3:
+        raise ValueError(f'Expected CxHxW dense tensor, got shape {tuple(dense_tensor.shape)}')
+    object_hmap = torch.sigmoid(dense_tensor[:object_classes]).detach().cpu()
+    geo = dense_tensor[object_classes:object_classes + geometry_channels].detach().cpu()
+    if geo.shape[0] < 6:
+        return []
+
+    _, h, w = dense_tensor.shape
+    proposals = []
+    for class_id, ch_hmap in enumerate(object_hmap):
+        if ch_hmap.max() < intensity_threshold:
+            continue
+        ch_np = (ch_hmap.numpy() * 255).astype('uint8')
+        _, binary_map = cv2.threshold(ch_np, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+        num_labels, labels, stats, _ = cv2.connectedComponentsWithStats(binary_map.astype('uint8'), connectivity=8)
+        for label_id in range(1, num_labels):
+            if stats[label_id][4] < min_area:
+                continue
+            component_mask = labels == label_id
+            mean_intensity = ch_np[component_mask].mean()
+            if mean_intensity < (intensity_threshold * 255):
+                continue
+            ys, xs = np.where(component_mask)
+            scores = ch_hmap[ys, xs]
+            peak_idx = int(torch.argmax(scores))
+            y = int(ys[peak_idx])
+            x = int(xs[peak_idx])
+            score = float(ch_hmap[y, x])
+            vals = geo[:, y, x]
+            roi_w = float(torch.exp(vals[2]) * w)
+            roi_h = float(torch.exp(vals[3]) * h)
+            cx = float(x + vals[0] * roi_w)
+            cy = float(y + vals[1] * roi_h)
+            angle = float(0.5 * torch.atan2(vals[4], vals[5]) * 180.0 / torch.pi)
+            proposals.append({
+                'class_id': class_id,
+                'score': score,
+                'peak': [x, y],
+                'rrect': [cx, cy, roi_w, roi_h, angle],
+            })
+    return proposals

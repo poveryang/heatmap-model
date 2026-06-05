@@ -1,7 +1,8 @@
 data:
-  root_dir: '/newdata/junjieyang/Datasets/barcode'
-  batch_size: 16
+  root_dir: '/home/yjunj/data/barcode'
+  batch_size: 2
   input_size: [ 400, 640 ]
+  num_workers: 0
   task: 'geo_qroi'
   quality_path:
   img_aug: true
@@ -13,9 +14,9 @@ model:
   object_classes: 3
   geometry_channels: 6
   enable_qroi: true
-  base_channels: 24
-  depth: 2
-  head_channels: 48
+  base_channels: 12
+  depth: 1
+  head_channels: 24
   interpolation: 'nearest'
   gamma: 2.0
   alpha: 0.5
@@ -28,8 +29,11 @@ model:
 trainer:
   accelerator: 'auto'
   strategy: 'auto'
-  devices: 'auto'
+  devices: 1
   precision: '32-true'
-  max_epochs: 500
-  sync_batchnorm: True
-  check_val_every_n_epoch: 2
+  max_epochs: 2
+  sync_batchnorm: false
+  check_val_every_n_epoch: 1
+  limit_train_batches: 20
+  limit_val_batches: 5
+  num_sanity_val_steps: 0

@@ -26,8 +26,12 @@ def infer_single_image(image_path, hmap_model, hmap_transform, visualize=True, o
     image_tensor = image_tensor.unsqueeze(0)
 
     with torch.no_grad():
-        hmap_tensor = hmap_model(in_tensor)
-        hmap_tensor = torch.sigmoid(hmap_tensor)
+        dense_tensor = hmap_model(in_tensor)
+        object_classes = getattr(hmap_model, 'object_classes', min(dense_tensor.shape[1], 3))
+        hmap_tensor = torch.sigmoid(dense_tensor[:, :object_classes])
+        instances = []
+        if getattr(hmap_model, 'geometry_channels', 0) >= 6:
+            instances = hmap_model.predict_instances(in_tensor)[0]
 
     if visualize or output_path is not None:
         vis_fig = visualize_single_hmap(hmap_tensor, image_tensor)
@@ -36,11 +40,29 @@ def infer_single_image(image_path, hmap_model, hmap_transform, visualize=True, o
             output_path = Path(output_path)
             output_path.parent.mkdir(parents=True, exist_ok=True)
             cv2.imwrite(str(output_path), vis_fig)
+            if instances:
+                roi_path = output_path.with_name(f'{output_path.stem}_rois{output_path.suffix}')
+                cv2.imwrite(str(roi_path), draw_instances(image_tensor, instances))
         elif visualize:
             cv2.imshow('vis_fig', vis_fig)
+            if instances:
+                cv2.imshow('rois', draw_instances(image_tensor, instances))
             cv2.waitKey(0)
 
-    return hmap_tensor
+    return hmap_tensor, instances
+
+
+def draw_instances(image_tensor, instances):
+    image = image_tensor.squeeze(0).squeeze(0).detach().cpu().numpy()
+    image = (image * 255).clip(0, 255).astype('uint8')
+    draw = cv2.cvtColor(image, cv2.COLOR_GRAY2BGR)
+    for inst in instances:
+        cx, cy, w, h, angle = inst['rrect']
+        pts = cv2.boxPoints(((cx, cy), (w, h), angle)).astype('int32')
+        cv2.polylines(draw, [pts], True, (0, 255, 0), 2)
+        text = f"c{inst['class_id']} q={inst.get('q_roi', 0):.2f} f={inst.get('final_score', 0):.2f}"
+        cv2.putText(draw, text, tuple(pts[0]), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1, cv2.LINE_AA)
+    return draw
 
 
 def infer_directory(input_dir, output_dir, hmap_model, input_size, visualize=False):

@@ -26,7 +26,7 @@ from mqbench.prepare_by_platform import BackendType, prepare_by_platform
 from mqbench.utils.state import enable_calibration, enable_quantization
 
 from hmap import CONFIGS_DIR  # noqa: E402
-from hmap.model import UNet  # noqa: E402
+from hmap.model import CSPPAFPNNet  # noqa: E402
 from hmap.utils.misc import load_configs  # noqa: E402
 
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".bmp"}
@@ -87,7 +87,7 @@ def load_model(exp_name: str, ckpt_path: Path) -> torch.nn.Module:
     model_conf.pop("alpha", None)
     model_conf.pop("init_lr", None)
 
-    model = UNet(**model_conf)
+    model = CSPPAFPNNet(**model_conf)
     checkpoint = torch.load(ckpt_path, map_location="cpu")
     state_dict = OrderedDict()
     for key, value in checkpoint["state_dict"].items():
@@ -179,7 +179,7 @@ def parse_args() -> argparse.Namespace:
         help=(
             "Weight quantization scheme. The MQBench Tengine_u8 default is "
             "asymmetric uint8, which can clip negative weights during Tengine "
-            "export; symmetric is the safer default for this UNet."
+            "export; symmetric is the safer default for this convolutional detector."
         ),
     )
     parser.add_argument("--calib-limit", type=int, default=512,

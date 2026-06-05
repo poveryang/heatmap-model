@@ -66,6 +66,25 @@ python python/train.py --exp hmap-v2 --pretrained /path/to/base.ckpt
 python python/train.py --exp hmap-v2 --resume /path/to/last.ckpt
 ```
 
+### Geometry + Q_roi 实验
+
+`hmap-geo-qroi-smoke` 会输出 3 个 object heatmap 通道和 6 个 geometry 通道，并在训练时用
+GT rotated ROI feature 回归 `Q_roi`。模型采用 CSP 风格 backbone、PAN/FPN neck、
+object/geometry decoupled dense head：
+
+```bash
+python python/train.py --exp hmap-geo-qroi-smoke
+```
+
+`data.quality_path` 可指向 SDK 分支生成的 `roi_quality.jsonl`。每行至少包含：
+
+```json
+{"image_id": "train/foo.png", "roi_id": 0, "q_roi": 0.75, "quality_mask": true}
+```
+
+`quality_mask=false` 或缺失质量标签的 ROI 不参与 `Q_roi` loss，但仍作为 object heatmap
+正样本参与训练。
+
 ## 评估与推理
 
 ```bash

@@ -9,9 +9,17 @@ if str(PYTHON_ROOT) not in sys.path:
 def profile_model():
     from thop import profile
     from thop import clever_format
-    from hmap.model.unet import UNet
+    from hmap.model import CSPPAFPNNet
 
-    model = UNet(in_channels=1, n_classes=3, inc_channels=16)
+    model = CSPPAFPNNet(
+        in_channels=1,
+        out_channels=9,
+        object_classes=3,
+        geometry_channels=6,
+        base_channels=24,
+        depth=2,
+        head_channels=48,
+    )
     in_tensor = torch.randn(1, 1, 960, 640)
     flops, params, ret_dict = profile(model, inputs=(in_tensor,), ret_layer_info=True)
     flops, params = clever_format([flops, params], "%.3f")

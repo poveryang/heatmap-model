@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export a heatmap Lightning checkpoint to ONNX with the legacy exporter."""
+"""Export a heatmap Lightning checkpoint to ONNX."""
 
 import argparse
 import os
@@ -26,7 +26,7 @@ def parse_args():
     parser.add_argument("--ckpt", required=True, help="Path to the Lightning .ckpt file.")
     parser.add_argument(
         "--out",
-        help="Optional output ONNX path. By default the legacy exporter writes next to the checkpoint.",
+        help="Optional output ONNX path. By default the exporter writes next to the checkpoint.",
     )
     parser.add_argument(
         "--force",
