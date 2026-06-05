@@ -1,0 +1,36 @@
+data:
+  root_dir: '/home/yjunj/data/barcode'
+  batch_size: 12
+  input_size: [ 400, 640 ]
+  num_workers: 4
+  task: 'geo_qroi'
+  quality_path:
+  img_aug: true
+  geo_aug: false
+
+model:
+  in_channels: 1
+  out_channels: 9
+  object_classes: 3
+  geometry_channels: 6
+  enable_qroi: false
+  base_channels: 24
+  depth: 2
+  head_channels: 48
+  interpolation: 'nearest'
+  gamma: 2.0
+  alpha: 0.5
+  init_lr: 5e-4
+  lambda_geo: 1.0
+  lambda_qroi: 0.0
+  qroi_pool_size: 7
+  qroi_eps: 0.2
+
+trainer:
+  accelerator: 'gpu'
+  strategy: 'ddp'
+  devices: 3
+  precision: '16-mixed'
+  max_epochs: 300
+  sync_batchnorm: true
+  check_val_every_n_epoch: 2
