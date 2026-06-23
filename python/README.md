@@ -56,7 +56,8 @@ python python/train.py --exp hmap-smoke
 python/runs/20250521_153045_hmap-smoke/
   checkpoints/          模型 checkpoint
   metrics.csv           训练指标
-  hmap_*.png            验证集可视化
+  hmap_*.png            验证集 object heatmap 可视化（heatmap/manifest.txt）
+  qroi_*.png            验证集 Q_roi 可视化（固定 val batch，GT ROI）
 ```
 
 可选参数：
@@ -64,7 +65,82 @@ python/runs/20250521_153045_hmap-smoke/
 ```bash
 python python/train.py --exp hmap-v2 --pretrained /path/to/base.ckpt
 python python/train.py --exp hmap-v2 --resume /path/to/last.ckpt
+python python/train.py --exp hmap-barcode-qroi-v2 --wandb
+python python/train.py --exp hmap-barcode-qroi-v2 --no-wandb
 ```
+
+### 后台稳定训练（推荐）
+
+使用 tmux 启动，Mac 离线后任务仍继续，日志写入 run 目录：
+
+```bash
+bash python/scripts/train_daemon.sh hmap-barcode-qroi-v2
+bash python/scripts/train_daemon.sh hmap-barcode-qroi-v2 --wandb
+
+# 查看实时日志
+tail -f python/runs/<run_name>/train.log
+
+# 重新 attach 到 tmux
+tmux attach -t hmap-hmap-barcode-qroi-v2
+```
+
+### Weights & Biases
+
+1. 安装并登录（一次性）：
+
+```bash
+pip install wandb
+wandb login
+```
+
+2. 在 YAML 中启用（见 `hmap-barcode-qroi-v2.yaml` 的 `wandb:` 段），或用 CLI 覆盖。
+
+`entity` 和 `name` **可不写**：登录后默认使用你的 W&B 账号；只有上传到团队项目时才需要设置 `entity`。
+
+训练指标与 `hmap_*.png` / `qroi_*.png` 会自动同步到 W&B 项目。
+
+> 注意：`wandb login` 需在**训练所在的远程机器**上执行，Mac 本地登录不会同步到服务器。
+
+### 自定义验证可视化样本
+
+heatmap 与 q_roi **均通过 manifest.txt 指定**，图像必须来自 `test/` 集（与 Q_roi 标签坐标一致，不使用 `img_aug`）。
+
+```text
+{root_dir}/viz/
+  heatmap/manifest.txt    # 1-8 行
+  qroi/manifest.txt       # 1-4 行
+```
+
+| 类型 | 文件 | 数量 | 要求 |
+|------|------|------|------|
+| heatmap | `viz/heatmap/manifest.txt` | 1–8 | 每行一条路径，须存在于 `test/test.txt` |
+| qroi | `viz/qroi/manifest.txt` | 1–4 | 同上，且含 ROI / Q_roi 标注 |
+
+`manifest.txt` 示例（路径与 `test/test.txt` 分号前一致）：
+
+```text
+large_code/00110.png
+large_code/00326.png
+```
+
+数量上限与网格列数由 YAML 控制：
+
+```yaml
+data:
+  viz:
+    heatmap_max_images: 8
+    qroi_max_images: 4
+    grid_cols: 2
+```
+
+多图以 **网格** 排列（q_roi 顶部另有汇总信息栏）。manifest 缺失或为空时训练启动会报错。
+
+**当前默认行为：**
+
+| 文件 | 数据来源 |
+|------|----------|
+| `hmap_{epoch}.png` | `viz/heatmap/manifest.txt` |
+| `qroi_{epoch}.png` | `viz/qroi/manifest.txt` |
 
 ### Geometry + Q_roi 实验
 
@@ -84,6 +160,19 @@ python python/train.py --exp hmap-geo-qroi-smoke
 
 `quality_mask=false` 或缺失质量标签的 ROI 不参与 `Q_roi` loss，但仍作为 object heatmap
 正样本参与训练。
+
+#### 验证可视化
+
+每个 validation epoch 结束（global rank 0）会在 run 目录写入两类图片：
+
+| 文件 | 数据来源 | 内容 |
+|------|----------|------|
+| `hmap_{epoch}.png` | `viz/heatmap/manifest.txt` | 3 通道 object heatmap 与输入叠加（网格排列） |
+| `qroi_{epoch}.png` | `viz/qroi/manifest.txt` | GT rotated ROI 框、汇总栏 + 网格面板 |
+
+`qroi_*.png` 使用与训练相同的 letterbox resize 和 ROI 坐标；`quality_mask=false` 的 ROI
+以灰色虚线框标注 `MASKED`，且不计入汇总 MAE。若 batch 内无有效 `Q_roi`，图片会标注
+`No valid Q_roi`。
 
 ## 评估与推理
 

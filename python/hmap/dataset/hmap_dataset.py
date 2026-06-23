@@ -83,9 +83,11 @@ class HeatMapDataset(Dataset):
 
 
 class HeatMapInferDataset(Dataset):
-    def __init__(self, data_dir, transform):
-        self.img_paths = list(Path(data_dir).rglob('*.png'))
-        self.img_paths.sort()
+    def __init__(self, data_dir, transform, img_paths=None):
+        if img_paths is None:
+            self.img_paths = sorted(Path(data_dir).rglob('*.png'))
+        else:
+            self.img_paths = [Path(p) for p in img_paths]
         self.transform = transform
 
     def __getitem__(self, idx):
@@ -96,6 +98,60 @@ class HeatMapInferDataset(Dataset):
 
     def __len__(self):
         return len(self.img_paths)
+
+
+class HeatMapSubsetDataset(Dataset):
+    def __init__(self, base_dataset, indices):
+        self.base_dataset = base_dataset
+        self.indices = indices
+
+    def __getitem__(self, idx):
+        return self.base_dataset[self.indices[idx]]
+
+    def __len__(self):
+        return len(self.indices)
+
+
+VIZ_HEATMAP_MAX = 8
+VIZ_QROI_MAX = 4
+
+
+def parse_viz_manifest(manifest_path, val_dataset, max_images, manifest_label='viz'):
+    manifest_path = Path(manifest_path)
+    if not manifest_path.is_file():
+        raise FileNotFoundError(
+            f'{manifest_label} manifest not found: {manifest_path}. '
+            f'Add 1-{max_images} lines, each matching a path in test/test.txt '
+            f'(example: large_code/00110.png).')
+
+    dataset_size = len(val_dataset.img_paths)
+    rel_to_idx = {
+        str(img_path.relative_to(val_dataset.data_dir)): idx
+        for idx, img_path in enumerate(val_dataset.img_paths)
+    }
+
+    indices = []
+    missing = []
+    for line_no, line in enumerate(manifest_path.read_text(encoding='utf-8').splitlines(), start=1):
+        rel_path = line.strip().replace('\\', '/')
+        if not rel_path or rel_path.startswith('#'):
+            continue
+        if rel_path not in rel_to_idx:
+            missing.append(f'line {line_no}: {rel_path}')
+            continue
+        indices.append(rel_to_idx[rel_path])
+        if len(indices) >= max_images:
+            break
+
+    if missing:
+        raise ValueError(
+            f'{manifest_label} manifest references images missing from the validation set:\n'
+            + '\n'.join(missing))
+    if not indices:
+        raise ValueError(
+            f'{manifest_label} manifest has no valid entries: {manifest_path}. '
+            f'Add 1-{max_images} image paths from test/test.txt.')
+    return indices
 
 
 def hmap_collate(batch):
@@ -145,7 +201,8 @@ class HMapDataModule(LightningDataModule):
             task='geo_qroi',
             quality_path=None,
             img_aug=True,
-            geo_aug=False):
+            geo_aug=False,
+            viz=None):
         super().__init__()
         self.root_dir = Path(root_dir)
         self.input_size = input_size
@@ -155,14 +212,15 @@ class HMapDataModule(LightningDataModule):
         self.quality_path = quality_path
         self.img_aug = img_aug
         self.geo_aug = geo_aug
-        self.hmap_train = self.hmap_val = self.hmap_test = self.hmap_infer = None
+        self.viz = viz or {}
+        self.hmap_train = self.hmap_val = self.hmap_test = None
+        self.hmap_heatmap_viz = self.hmap_qroi_viz = None
 
     def setup(self, stage=None):
         # set image path
         train_dir = self.root_dir / 'train'
         val_dir = self.root_dir / 'test'
         test_dir = self.root_dir / 'test'
-        infer_dir = self.root_dir / 'sample'
         enable_geo_qroi = self.task in ('geo_qroi', 'geometry_qroi')
         output_mode = 'geo_qroi' if enable_geo_qroi else 'heatmap'
         # set transform
@@ -177,7 +235,20 @@ class HMapDataModule(LightningDataModule):
         self.hmap_train = HeatMapDataset(train_dir, transform=train_transform, quality_path=quality_path)
         self.hmap_val = HeatMapDataset(val_dir, transform=val_transform, quality_path=quality_path)
         self.hmap_test = HeatMapDataset(test_dir, transform=val_transform, quality_path=quality_path)
-        self.hmap_infer = HeatMapInferDataset(infer_dir, transform=val_transform)
+        heatmap_max = int(self.viz.get('heatmap_max_images', VIZ_HEATMAP_MAX))
+        qroi_max = int(self.viz.get('qroi_max_images', VIZ_QROI_MAX))
+        heatmap_manifest = self.viz.get('heatmap_manifest')
+        if heatmap_manifest is None:
+            heatmap_manifest = self.root_dir / 'viz' / 'heatmap' / 'manifest.txt'
+        qroi_manifest = self.viz.get('qroi_manifest')
+        if qroi_manifest is None:
+            qroi_manifest = self.root_dir / 'viz' / 'qroi' / 'manifest.txt'
+        heatmap_indices = parse_viz_manifest(
+            heatmap_manifest, self.hmap_val, heatmap_max, manifest_label='heatmap')
+        qroi_indices = parse_viz_manifest(
+            qroi_manifest, self.hmap_val, qroi_max, manifest_label='qroi')
+        self.hmap_heatmap_viz = HeatMapSubsetDataset(self.hmap_val, heatmap_indices)
+        self.hmap_qroi_viz = HeatMapSubsetDataset(self.hmap_val, qroi_indices)
 
     def train_dataloader(self):
         collate_fn = hmap_collate if self.task in ('geo_qroi', 'geometry_qroi') else None
@@ -189,11 +260,21 @@ class HMapDataModule(LightningDataModule):
         return DataLoader(self.hmap_val, batch_size=self.batch_size, shuffle=False, pin_memory=True,
                           num_workers=self.num_workers, collate_fn=collate_fn)
 
+    def qroi_viz_dataloader(self):
+        collate_fn = hmap_collate if self.task in ('geo_qroi', 'geometry_qroi') else None
+        dataset = self.hmap_qroi_viz
+        batch_size = len(dataset)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
+                          num_workers=self.num_workers, collate_fn=collate_fn)
+
+    def heatmap_viz_dataloader(self):
+        collate_fn = hmap_collate if self.task in ('geo_qroi', 'geometry_qroi') else None
+        dataset = self.hmap_heatmap_viz
+        batch_size = len(dataset)
+        return DataLoader(dataset, batch_size=batch_size, shuffle=False, pin_memory=True,
+                          num_workers=self.num_workers, collate_fn=collate_fn)
+
     def test_dataloader(self):
         collate_fn = hmap_collate if self.task in ('geo_qroi', 'geometry_qroi') else None
         return DataLoader(self.hmap_test, batch_size=1, shuffle=False, pin_memory=True, num_workers=self.num_workers,
                           collate_fn=collate_fn)
-
-    def predict_dataloader(self):
-        batch_size = min(8, len(self.hmap_infer)) or 1
-        return DataLoader(self.hmap_infer, batch_size=batch_size, shuffle=False, num_workers=self.num_workers)

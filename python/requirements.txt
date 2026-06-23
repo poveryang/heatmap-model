@@ -3,6 +3,7 @@
 torch==2.5.1
 torchvision==0.20.1
 lightning
+wandb
 PyYAML
 opencv-python
 numpy
