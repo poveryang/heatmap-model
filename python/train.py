@@ -20,7 +20,7 @@ from lightning.pytorch.loggers import CSVLogger, WandbLogger
 from hmap import CONFIGS_DIR, RUNS_DIR
 from hmap.dataset import HMapDataModule
 from hmap.model import HMapLitModel
-from hmap.utils import load_configs, load_pl_model, set_callbacks
+from hmap.utils import load_configs, load_pl_model, set_callbacks, trainer_kwargs_from_config
 
 
 def make_run_dir(exp_name: str) -> Path:
@@ -83,9 +83,9 @@ def main(exp_name, pretrained_path=None, resume_path=None, wandb_enabled=None):
 
     run_dir = make_run_dir(exp_name)
     hmap_model.set_log_dir(run_dir)
-    callbacks = set_callbacks(exp_name, run_dir)
+    callbacks = set_callbacks(exp_name, run_dir, configs.get('trainer'))
     loggers = build_loggers(run_dir, exp_name, configs)
-    trainer = Trainer(logger=loggers, **configs['trainer'], callbacks=callbacks)
+    trainer = Trainer(logger=loggers, callbacks=callbacks, **trainer_kwargs_from_config(configs['trainer']))
 
     print(f"Run directory: {run_dir}")
     if any(logger.__class__.__name__ == 'WandbLogger' for logger in loggers):

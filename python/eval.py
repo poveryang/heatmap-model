@@ -11,7 +11,7 @@ from lightning import Trainer
 from hmap import CONFIGS_DIR
 from hmap.dataset import HMapDataModule
 from hmap.model import HMapLitModel
-from hmap.utils import load_configs, load_pl_model
+from hmap.utils import load_configs, load_pl_model, trainer_kwargs_from_config
 
 
 def main(exp_name, model_path=None):
@@ -22,8 +22,9 @@ def main(exp_name, model_path=None):
 
     hmap_model = load_pl_model(HMapLitModel, model_path, **configs['model'])
 
-    configs['trainer']['devices'] = 1
-    trainer = Trainer(**configs['trainer'])
+    trainer_conf = trainer_kwargs_from_config(configs['trainer'])
+    trainer_conf['devices'] = 1
+    trainer = Trainer(**trainer_conf)
     trainer.test(hmap_model, datamodule=datamodule)
 
 
