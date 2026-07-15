@@ -43,7 +43,6 @@ transfer before starting a run.
 ```bash
 python python/scripts/det/export_raw_head_onnx.py \
   --checkpoint python/runs/det/<run>/weights/best.pt \
-  --model-kind yolov8 \
   --split-free-c2f \
   --output deploy/vs1000pro/yolov8n-gray/onnx/barcode-yolov8n-gray.onnx
 ```

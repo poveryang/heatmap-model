@@ -142,8 +142,7 @@ this release because P2 and larger inputs cost too much on VS1000Pro.
 Raw labels, images, visualization PNGs, per-image timing CSVs, and rejected
 quantization candidates remain local evidence and are intentionally not versioned.
 
-Board deployment: `/usr/scanner/yolov8n-gray-test`. The existing YOLO12n deployment
-was not modified.
+Board deployment: `/usr/scanner/yolov8n-gray-test`.
 
 ## SHA256
 

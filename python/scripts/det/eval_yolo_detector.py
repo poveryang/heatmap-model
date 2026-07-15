@@ -24,7 +24,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--weights", type=Path, required=True)
     parser.add_argument("--data", type=Path, default=DEFAULT_DATA)
     parser.add_argument("--project", type=Path, default=Path("python/runs/det_eval"))
-    parser.add_argument("--name", default="barcode-yolo26n-p2-gray")
+    parser.add_argument("--name", default="barcode-yolov8n-gray")
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=64)
     parser.add_argument("--device", default="0")

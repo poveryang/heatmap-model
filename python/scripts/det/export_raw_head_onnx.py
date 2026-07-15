@@ -16,21 +16,6 @@ from torch import nn
 from ultralytics import YOLO
 
 
-FORBIDDEN_YOLO26_OPS = {"MatMul", "Softmax", "TopK"}
-
-
-class AttentionFreePSABlock(nn.Module):
-    """Keep a trained PSABlock's convolutional FFN while bypassing attention."""
-
-    def __init__(self, block: nn.Module) -> None:
-        super().__init__()
-        self.ffn = block.ffn
-        self.add = bool(block.add)
-
-    def forward(self, image: torch.Tensor) -> torch.Tensor:
-        return image + self.ffn(image) if self.add else self.ffn(image)
-
-
 class FusedConvAct(nn.Module):
     """Fused convolution and activation used by the split-free C2f export."""
 
@@ -84,17 +69,6 @@ class SplitFreeC2f(nn.Module):
         return self.cv2(torch.cat(outputs, dim=1))
 
 
-def strip_psa_attention(module: nn.Module) -> int:
-    replaced = 0
-    for name, child in list(module.named_children()):
-        if child.__class__.__name__ == "PSABlock":
-            setattr(module, name, AttentionFreePSABlock(child))
-            replaced += 1
-        else:
-            replaced += strip_psa_attention(child)
-    return replaced
-
-
 def replace_c2f_splits(module: nn.Module) -> int:
     replaced = 0
     for name, child in list(module.named_children()):
@@ -139,12 +113,11 @@ class StaticRawDetect(nn.Module):
 
 
 class RawDetectionHead(nn.Module):
-    def __init__(self, checkpoint: Path, imgsz: int, strip_attention: bool = False,
-                 per_level: bool = False, split_free_c2f: bool = False) -> None:
+    def __init__(self, checkpoint: Path, imgsz: int, per_level: bool = False,
+                 split_free_c2f: bool = False) -> None:
         super().__init__()
         self.core = YOLO(str(checkpoint)).model.float().eval()
         self.core.fuse(verbose=False)
-        self.stripped_attention_blocks = strip_psa_attention(self.core) if strip_attention else 0
         self.split_free_c2f_blocks = replace_c2f_splits(self.core) if split_free_c2f else 0
         original_head = self.core.model[-1]
         if not hasattr(original_head, "reg_max") or not hasattr(original_head, "stride"):
@@ -172,10 +145,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--checkpoint", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
-    parser.add_argument("--model-kind", choices=("yolov8", "yolo26"), required=True)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--opset", type=int, default=11)
-    parser.add_argument("--strip-attention", action="store_true")
     parser.add_argument("--per-level", action="store_true")
     parser.add_argument("--split-free-c2f", action="store_true")
     return parser.parse_args()
@@ -199,8 +170,8 @@ def main() -> None:
     output = args.output.expanduser().resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    wrapper = RawDetectionHead(checkpoint, args.imgsz, strip_attention=args.strip_attention,
-                               per_level=args.per_level, split_free_c2f=args.split_free_c2f)
+    wrapper = RawDetectionHead(checkpoint, args.imgsz, per_level=args.per_level,
+                               split_free_c2f=args.split_free_c2f)
     head = wrapper.head
     strides = [int(value) for value in head.stride.tolist()]
     output_names = (
@@ -232,10 +203,6 @@ def main() -> None:
     onnx.save(model, output)
 
     operators = Counter(node.op_type for node in model.graph.node)
-    forbidden = sorted(FORBIDDEN_YOLO26_OPS.intersection(operators))
-    if args.model_kind == "yolo26" and forbidden:
-        raise RuntimeError(f"YOLO26 raw-head ONNX contains forbidden operators: {forbidden}")
-
     report = {
         "checkpoint": str(checkpoint),
         "onnx": str(output),
@@ -261,12 +228,7 @@ def main() -> None:
         "classes": int(head.nc),
         "reg_max": int(head.reg_max),
         "operators": dict(sorted(operators.items())),
-        "forbidden_yolo26_operators_present": forbidden,
         "model_transform": {
-            "attention_blocks_removed": wrapper.stripped_attention_blocks,
-            "attention_removal": "PSABlock attention bypassed; trained convolutional FFN retained"
-            if wrapper.stripped_attention_blocks
-            else "none",
             "split_free_c2f_blocks": wrapper.split_free_c2f_blocks,
             "split_free_c2f": "fused cv1 weights sliced into two equivalent convolutions"
             if wrapper.split_free_c2f_blocks
