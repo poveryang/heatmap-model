@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Convert the existing HMap rotated-rectangle labels to YOLO detection labels.
+"""Convert barcode rotated-rectangle labels to YOLO detection labels.
 
 The source dataset uses lines like:
   rel/image.png;cx,cy,w,h,angle_deg,class_id;...

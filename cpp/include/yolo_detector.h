@@ -1,5 +1,5 @@
-#ifndef HMAP_YOLO_DETECTOR_H
-#define HMAP_YOLO_DETECTOR_H
+#ifndef YOLO_BARCODE_DETECTOR_H
+#define YOLO_BARCODE_DETECTOR_H
 
 #include "c_api.h"
 

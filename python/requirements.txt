@@ -1,20 +1,12 @@
-# MQBench 与 torch>=2.6 不兼容，固定 cu124 版本。
 --extra-index-url https://download.pytorch.org/whl/cu124
 torch==2.5.1
 torchvision==0.20.1
-lightning
-wandb
 PyYAML
 opencv-python
 numpy
 Pillow
 tqdm
-matplotlib
-seaborn
 onnx
 onnxruntime
-onnxsim
-thop
 ultralytics==8.4.0
 protobuf
-prettytable

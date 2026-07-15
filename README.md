@@ -1,43 +1,18 @@
-# heatmap-model
+# YOLOv8 Gray Barcode Detector
 
-热力图模型 monorepo：Python 负责训练与 ONNX 导出，C++ 负责 Tengine 端侧推理与部署。
+This repository contains the frozen one-channel YOLOv8n detector for barcode,
+QR, and Data Matrix localization. It includes training/export tooling, a
+Tengine/TIM-VX C++ runtime, and the validated VS1000Pro release artifact.
 
-| 子项目 | 说明 |
-| --- | --- |
-| [python/](python/README.md) | PyTorch Lightning 训练、评估、推理、ONNX 导出 |
-| [cpp/](cpp/README.md) | Tengine 模型转换、交叉编译、板端 NPU 推理 |
+## Release
 
-## 快速开始
+- Runtime model: `deploy/vs1000pro/yolov8n-gray/tmfile/barcode-yolov8n-gray-final-uint8.tmfile`
+- Input: fixed grayscale `1x1x640x640`
+- Board result: 95.68% mAP50, 93.90% recall, 79.091 ms end-to-end mean
+- AT integration: `deploy/vs1000pro/yolov8n-gray/AT_INTEGRATION.md`
 
-**训练**（见 [python/README.md](python/README.md)）：
+## Layout
 
-```bash
-conda activate hmap   # pip install -r python/requirements.txt && bash python/scripts/install_mqbench.sh
-python python/train.py --exp hmap-smoke
-```
-
-**本地提交到 GPU 服务器训练**：
-
-```powershell
-powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 start hmap-barcode-qroi-v3
-```
-
-**imx8plus 部署**（见 [cpp/README.md](cpp/README.md)）：
-
-```bash
-cp cpp/board.env.example cpp/board.env   # 编辑板端 IP/密码
-
-bash cpp/scripts/deploy/pipeline.sh \
-  --onnx /path/to/model.onnx \
-  --calib /path/to/calib_images/ \
-  --image /path/to/test.png \
-  --config cpp/board.env
-```
-
-## 生成物目录
-
-| 路径 | 内容 | gitignore |
-| --- | --- | --- |
-| `python/runs/` | 训练日志、checkpoint、可视化 | 是 |
-| `cpp/artifacts/` | tmfile、板端推理输出 | 是 |
-| `cpp/build/` | 交叉编译产物 | 是 |
+- `python/`: YOLOv8 training, export, calibration, and validation tools
+- `cpp/`: Tengine/TIM-VX detector implementation for VS1000Pro
+- `deploy/vs1000pro/yolov8n-gray/`: frozen model, ONNX export, checkpoint, and release evidence

@@ -16,12 +16,12 @@ from ultralytics import YOLO
 PYTHON_ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(PYTHON_ROOT))
 
-from hmap.detector import (  # noqa: E402
+from yolo_detector import (  # noqa: E402
     GrayscalePretrainedDetectionTrainer,
     build_grayscale_model,
     resolve_pretrained_weights,
 )
-from hmap.detector.trainer import (  # noqa: E402
+from yolo_detector.trainer import (  # noqa: E402
     PRETRAINED_BACKBONE_LAYERS_ENV,
     PRETRAINED_ENV,
 )

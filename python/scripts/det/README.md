@@ -17,7 +17,7 @@ and `dm`.
 ## Dataset
 
 ```bash
-python python/scripts/det/convert_hmap_to_yolo.py \
+python python/scripts/det/convert_barcode_to_yolo.py \
   --source-root /home/yjunj/data/barcode \
   --out-root /home/yjunj/data/barcode_yolo_det
 ```
