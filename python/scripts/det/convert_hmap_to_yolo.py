@@ -180,6 +180,7 @@ def write_data_yaml(out_root: Path) -> None:
         "train": "images/train",
         "val": "images/val",
         "test": "images/val",
+        "channels": 1,
         "names": {idx: name for idx, name in enumerate(CLASS_NAMES)},
     }
     (out_root / "data.yaml").write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")

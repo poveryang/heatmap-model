@@ -16,6 +16,12 @@ conda activate hmap   # pip install -r python/requirements.txt && bash python/sc
 python python/train.py --exp hmap-smoke
 ```
 
+**本地提交到 GPU 服务器训练**：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 start hmap-barcode-qroi-v3
+```
+
 **imx8plus 部署**（见 [cpp/README.md](cpp/README.md)）：
 
 ```bash

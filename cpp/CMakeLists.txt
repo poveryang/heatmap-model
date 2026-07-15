@@ -17,12 +17,14 @@ ENDIF ()
 
 IF (NOT FOUND_OPENCV)
     MESSAGE(STATUS "OpenCV not found in libHMAP, use OpenCV_DIR: ${OpenCV_DIR}")
-    FIND_PACKAGE(OpenCV REQUIRED PATHS ${OpenCV_DIR})
+    FIND_PACKAGE(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs PATHS ${OpenCV_DIR})
 ENDIF ()
+SET(HMAP_OPENCV_LIBS opencv_core opencv_imgproc opencv_imgcodecs)
 
 # Build hmap_generator library
 ADD_COMPILE_OPTIONS(-fPIC)
 ADD_LIBRARY(${PROJECT_NAME} STATIC src/hmap_generator.cpp)
+ADD_LIBRARY(YOLO_DETECTOR STATIC src/yolo_detector.cpp)
 
 # Include directories
 SET(TENGINE_INC_DIR ${TENGINE_DIR}/include)
@@ -31,23 +33,38 @@ TARGET_INCLUDE_DIRECTORIES(${PROJECT_NAME} PUBLIC
         ${HMAP_INC_DIR}
         ${TENGINE_INC_DIR}
         )
+TARGET_INCLUDE_DIRECTORIES(YOLO_DETECTOR PUBLIC
+        ${HMAP_INC_DIR}
+        ${TENGINE_INC_DIR}
+        )
 
 # Link libraries
 FILE(GLOB TENGINE_LIBS ${TENGINE_LIB_DIR}/*.so)
 TARGET_LINK_LIBRARIES(${PROJECT_NAME} PUBLIC
         ${TENGINE_LIBS}
-        ${OpenCV_LIBS}
+        ${HMAP_OPENCV_LIBS}
+        )
+TARGET_LINK_LIBRARIES(YOLO_DETECTOR PUBLIC
+        ${TENGINE_LIBS}
+        ${HMAP_OPENCV_LIBS}
         )
 
 
 # Install library
-INSTALL(TARGETS ${PROJECT_NAME}
+INSTALL(TARGETS ${PROJECT_NAME} YOLO_DETECTOR
         LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
         )
 
 # Build test
 ADD_EXECUTABLE(${PROJECT_NAME}-TEST "./test/test_hmap.cpp")
 TARGET_LINK_LIBRARIES(${PROJECT_NAME}-TEST PUBLIC
         ${PROJECT_NAME}
-        ${OpenCV_LIBS}
+        ${HMAP_OPENCV_LIBS}
+        )
+
+ADD_EXECUTABLE(YOLO-DETECTOR-TEST "./test/test_yolo.cpp")
+TARGET_LINK_LIBRARIES(YOLO-DETECTOR-TEST PUBLIC
+        YOLO_DETECTOR
+        ${HMAP_OPENCV_LIBS}
         )

@@ -8,3 +8,18 @@ cpp/build/
 cpp/artifacts/
 cpp/board.env
 python/runs/
+
+# Generated detector experiments are retained locally; release artifacts are
+# explicitly added when a model is frozen.
+deploy/smoke/
+deploy/vs1000pro/
+scale_bias.txt
+scale_weight.txt
+
+# Superseded detector experiments are intentionally outside the YOLOv8 release.
+cpp/scripts/deploy/build_yolo12n_compat.sh
+cpp/src/tengine_yolo12n_compat.c
+python/configs/det/barcode-yolo26n-p2-gray.yaml
+python/scripts/det/prepare_yolo12n_tengine.py
+python/scripts/det/train_daemon.sh
+python/scripts/det/train_pair_daemon.sh

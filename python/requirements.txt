@@ -15,5 +15,6 @@ onnx
 onnxruntime
 onnxsim
 thop
+ultralytics==8.4.0
 protobuf
 prettytable

@@ -30,6 +30,26 @@ if [[ ! -f "${CONDA_SH}" ]]; then
   exit 1
 fi
 
+GIT_BRANCH="$(git -C "${REPO}" branch --show-current 2>/dev/null || true)"
+GIT_COMMIT="$(git -C "${REPO}" rev-parse HEAD 2>/dev/null || true)"
+GIT_STATUS_COUNT="$(git -C "${REPO}" status --short 2>/dev/null | wc -l | tr -d ' ')"
+
+{
+  echo "run_name=${RUN_NAME}"
+  echo "exp=${EXP}"
+  echo "started_at=$(date -Is)"
+  echo "repo=${REPO}"
+  echo "git_branch=${GIT_BRANCH}"
+  echo "git_commit=${GIT_COMMIT}"
+  echo "git_status=${GIT_STATUS_COUNT} changed files"
+  echo "conda_env=${CONDA_ENV}"
+  echo "args=$*"
+} > "${RUN_DIR}/run.env"
+
+if [[ -f "${REPO}/python/configs/${EXP}.yaml" ]]; then
+  cp "${REPO}/python/configs/${EXP}.yaml" "${RUN_DIR}/config.yaml"
+fi
+
 CMD="export HMAP_RUN_NAME='${RUN_NAME}' && source '${CONDA_SH}' && conda activate '${CONDA_ENV}' && cd '${REPO}' && python python/train.py --exp '${EXP}' $* 2>&1 | tee '${RUN_DIR}/train.log'"
 
 if command -v tmux >/dev/null 2>&1; then

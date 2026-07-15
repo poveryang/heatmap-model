@@ -84,6 +84,64 @@ tail -f python/runs/<run_name>/train.log
 tmux attach -t hmap-hmap-barcode-qroi-v2
 ```
 
+### 本地维护代码，GPU 服务器训练
+
+推荐规则：
+
+1. 本地只负责改代码、改 YAML、提交 Git。
+2. GPU 服务器只负责同步同一 Git 分支并运行训练。
+3. 数据集、checkpoint、`python/runs/` 留在服务器，不进 Git。
+4. 每次训练目录会保存 `run.env`、`config.yaml`、`train.log`，方便回看本次配置与 commit。
+
+从 Windows 本地一键提交远端训练：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 start hmap-barcode-qroi-v3
+```
+
+脚本默认会：
+
+- 推送当前 Git 分支到 `origin`
+- SSH 到 `yjunj@10.80.31.40`
+- 在 `/home/yjunj/projects/heatmap-model` 更新同一分支
+- 用 `python/scripts/train_daemon.sh` 在 tmux 后台启动训练
+
+常用操作：
+
+```powershell
+# 启动并额外传训练参数
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 start hmap-barcode-qroi-v3 -- --wandb
+
+# 查看远端训练状态和最近日志路径
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 status hmap-barcode-qroi-v3
+
+# 跟随最新一次训练日志
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 tail hmap-barcode-qroi-v3 -Follow
+
+# 停止这个实验名对应的 tmux 训练
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 stop hmap-barcode-qroi-v3
+```
+
+如果服务器路径、环境名不同，可覆盖：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File tools/remote_train.ps1 start hmap-barcode-qroi-v3 `
+  -Remote yjunj@10.80.31.40 `
+  -RemoteRepo /home/yjunj/projects/heatmap-model `
+  -CondaEnv hmap
+```
+
+第一次使用前，服务器上需确认：
+
+```bash
+cd /home/yjunj/projects/heatmap-model
+git status
+conda activate hmap
+pip install -r python/requirements.txt
+bash python/scripts/install_mqbench.sh
+wandb login  # 如需 W&B
+```
+
 ### Weights & Biases
 
 1. 安装并登录（一次性）：

@@ -1,0 +1,10 @@
+path: /home/yjunj/data/barcode_yolo_det
+train: images/train
+val: images/val
+test: images/val
+channels: 1
+
+names:
+  0: bar
+  1: qr
+  2: dm

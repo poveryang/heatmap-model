@@ -1,83 +1,60 @@
-# Lightweight Barcode Detector
+# YOLOv8n Gray Barcode Detector
 
-This folder contains the reproducible object-detection-only pipeline used for the
-lightweight barcode detector experiment.
+This is the frozen training and export pipeline for the one-channel barcode
+detector used by the VS1000Pro image-adjustment feature. It detects `bar`, `qr`,
+and `dm`.
 
-## Model Choice
+## Model
 
-Primary model: `yolo12n.pt`.
+- Architecture: `python/configs/det/barcode-yolov8n-gray.yaml`
+- Input: fixed grayscale `1x1x640x640`
+- Pretraining: COCO `yolov8n.pt`; shared layers 0-21 are transferred by name.
+- RGB stem conversion: the three pretrained input-channel kernels are summed into
+  one grayscale kernel.
+- Deployment export: raw box and class logits. DFL decode, sigmoid, thresholding,
+  and class-aware NMS execute in C++.
 
-Rationale:
-- nano-size detector: about 2.6M parameters and 6.5 GFLOPs at 640 input.
-- strong current accuracy/latency trade-off among Ultralytics-compatible nano
-  detectors.
-- simple deployment path through Ultralytics export to ONNX/TensorRT.
-
-Fallback if absolute latency is more important than accuracy: benchmark
-`yolov10n.pt`, but treat it as a speed fallback rather than the default.
-
-## Dataset Conversion
-
-The source HMap labels store rotated rectangles in text files such as:
-
-```text
-relative/image.png;cx,cy,w,h,angle,class;...
-```
-
-Convert them to standard YOLO axis-aligned detection labels:
+## Dataset
 
 ```bash
-/home/yjunj/miniforge3/envs/hmap/bin/python python/scripts/det/convert_hmap_to_yolo.py \
+python python/scripts/det/convert_hmap_to_yolo.py \
   --source-root /home/yjunj/data/barcode \
   --out-root /home/yjunj/data/barcode_yolo_det
 ```
 
-The converter writes `data.yaml`, split image/label folders, and `stats.json`.
+The generated data YAML must retain `channels: 1`.
 
-## Training
-
-Stable training recipe used for the main run:
+## Train
 
 ```bash
-/home/yjunj/miniforge3/envs/hmap/bin/python python/scripts/det/train_yolo12n.py \
-  --data /home/yjunj/data/barcode_yolo_det/data.yaml \
-  --project python/runs/det \
-  --name yolo12n-barcode-det-adamw \
-  --epochs 20 \
-  --batch 128 \
-  --device 0,1,2,3 \
-  --workers 12 \
-  --patience 8 \
-  --optimizer AdamW \
-  --lr0 0.001 \
-  --lrf 0.01 \
-  --warmup-epochs 1 \
-  --mosaic 0.3 \
-  --scale 0.3 \
-  --degrees 5 \
-  --translate 0.03 \
-  --shear 1 \
-  --close-mosaic 5
+python python/scripts/det/train_barcode_detector.py \
+  --data python/configs/det/barcode-data.yaml \
+  --model python/configs/det/barcode-yolov8n-gray.yaml \
+  --pretrained yolov8n.pt \
+  --pretrained-max-layer 21 \
+  --name barcode-yolov8n-gray
 ```
 
-The recipe intentionally uses moderate geometric augmentation for barcode-like
-targets and closes mosaic near the end so final epochs match deployment images
-more closely.
+Use `--dry-run` to validate the one-channel model and grayscale pretraining
+transfer before starting a run.
 
-## Evaluation And Export
-
-Run an independent validation summary and optional ONNX export:
+## Export
 
 ```bash
-/home/yjunj/miniforge3/envs/hmap/bin/python python/scripts/det/eval_yolo_detector.py \
-  --weights /home/yjunj/projects/heatmap-model/python/runs/det/yolo12n-barcode-det-adamw/weights/best.pt \
-  --data /home/yjunj/data/barcode_yolo_det/data.yaml \
-  --project python/runs/det_eval \
-  --name yolo12n-barcode-det-adamw \
-  --imgsz 640 \
-  --batch 64 \
-  --device 0 \
-  --export-onnx
+python python/scripts/det/export_raw_head_onnx.py \
+  --checkpoint python/runs/det/<run>/weights/best.pt \
+  --model-kind yolov8 \
+  --split-free-c2f \
+  --output deploy/vs1000pro/yolov8n-gray/onnx/barcode-yolov8n-gray.onnx
 ```
 
-The summary is written to the evaluation run directory as `summary.json`.
+Use `prepare_gray_calibration.py` to letterbox representative grayscale training
+images exactly as the board does. `equalize_concat_scales.py` repairs TIM-VX
+Concat qparams before UINT8 quantization.
+
+## Board Validation
+
+`prepare_board_validation_split.py` creates SHA256 content-disjoint quantization
+validation and final-test views. `evaluate_board_detections.py` evaluates the
+board detection CSV against YOLO labels. The frozen model and full release
+results are under `deploy/vs1000pro/yolov8n-gray/`.
